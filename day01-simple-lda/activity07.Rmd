@@ -6,3 +6,88 @@ output: github_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+
+## Libraries
+```{r libraries, message=FALSE}
+library(tidyverse)
+library(tidymodels)
+```
+
+## Loading the Data
+```{r dataload}
+resume <- read.csv("https://www.openintro.org/data/csv/resume.csv")
+```
+
+## LDA
+```{r LDA}
+# Convert received_callback to a factor with more informative labels
+resume <- resume %>% mutate(received_callback = factor(received_callback, labels = c("No", "Yes")))
+
+
+# LDA
+library(discrim)
+lda_years <- discrim_linear() %>% 
+  set_mode("classification") %>% 
+  set_engine("MASS") %>% 
+  fit(received_callback ~ log(years_experience), data = resume)
+
+lda_years
+```
+The `group mean` for resumes that received a call back is higher than resumes that did not receive a call back.
+The `group mean` is comparing the peaks of each density plot.
+
+## Predictions
+
+This outputs a long list of predictions so this must be consolidated into a confusion matrix.
+```{r predictions}
+predict(lda_years, new_data = resume, type = "prob")
+```
+
+The confusion matrix shows us that every record was classified as not getting a call back.
+```{r confusion matrix}
+augment(lda_years, new_data = resume) %>% 
+  conf_mat(truth = received_callback, estimate = .pred_class)
+```
+
+The accuracy represents the probability of a record being a `no`.
+```{r probabilities}
+augment(lda_years, new_data = resume) %>% 
+  accuracy(truth = received_callback, estimate = .pred_class)
+```
+
+
+## Challenge: Fit another model
+Creating a linear model using the log() of `years_experience`.
+```{r another model}
+resume <- read.csv("https://www.openintro.org/data/csv/resume.csv")
+lm_years <- lm(received_callback ~ log(years_experience), data = resume)
+```
+
+```{r predict}
+aug_lm_years <- augment(lm_years)
+```
+
+```{r plot task 3}
+resume %>% 
+  ggplot(aes(x=received_callback, y=log(years_experience))) +
+  geom_smooth(method = "lm", se = FALSE) +
+  geom_point() + 
+  theme_bw()
+```
+
+```{r chart residuals}
+ggplot(data = aug_lm_years, aes(x = .fitted, y = .std.resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  xlab("Fitted values") +
+  ylab("Residuals") + 
+  theme_bw()
+```
+
+```{r histogram}
+ggplot(data = aug_lm_years, aes(x = .std.resid)) +
+  geom_histogram(binwidth = 0.25) +
+  xlab("Residuals") + 
+  theme_bw()
+```
+
